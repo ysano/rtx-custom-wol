@@ -1,0 +1,245 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<title>カスタムGUI設定例 Wake on LANによるPC管理</title>
+<link rel="stylesheet" href="./style.css" type="text/css">
+<script type="text/javascript" src="/custom/custom_gui_lib.js"></script>
+<script type="text/javascript"> 
+<!--
+/*
+ *  【概要】  XMLHttpRequestオブジェクトを作成する
+ *
+ *  【引数】  なし
+ *
+ *  【戻り値】XMLHttpRequestオブジェクト
+ */
+function createHttpRequest()
+{
+	if (window.ActiveXObject) {
+		try {
+			return new ActiveXObject("Msxml2.XMLHTTP");
+		} catch (e) {
+			try {
+				return new ActiveXObject("Microsoft.XMLHTTP");
+			} catch (e2) {
+				return null;
+			}
+		}
+	}
+	else if (window.XMLHttpRequest)
+		return new XMLHttpRequest();
+	else
+		return null;
+}
+ 
+/*
+ *  【概要】  リクエストを送信する
+ *
+ *  【引数】  callback: コールバック関数
+ *            data    : 送信するデータ
+ *            async   : true  - 非同期モード
+ *                      false - 同期モード
+ *
+ *  【戻り値】なし
+ */
+function sendRequest(callback, data, async)
+{
+	var httpoj = createHttpRequest();
+
+	httpoj.open("POST", "/custom/execute", async);
+	httpoj.onreadystatechange = function()
+	{
+		if (httpoj.readyState == 4)
+			callback(httpoj);
+	}
+	httpoj.send(data);
+}
+
+/*
+ *  【概要】  コマンドが実行されたか否かを確認する
+ *
+ *  【引数】  oj: XMLHttpRequestオブジェクト
+ *
+ *  【戻り値】なし
+ */
+function confirmWol(oj)
+{
+	if (oj.status == 200)
+		alert("Magic Packetを送信しました");
+	else
+		alert("エラーが発生しました");
+}
+
+function confirmLogout(oj)
+{
+	if (oj.status == 200)
+		alert("ログアウトしました。ブラウザを終了してください。");
+	else
+		alert("ログアウトできませんでした。");
+}
+
+/*
+ *  【概要】  選択した情報を入力フィールドにセットする
+ *
+ *  【引数】  mac : MACアドレス
+ *
+ *  【戻り値】なし
+ */
+function setAddr(mac)
+{
+	document.getElementById("target_mac").value = mac;
+}
+
+/*
+ *  【概要】  コマンド実行結果からページを作成する
+ *
+ *  【引数】  oj: XMLHttpRequestオブジェクト
+ *
+ *  【戻り値】なし
+ */
+function printDhcpClientInfo(oj)
+{
+	var str_array = oj.responseText.split('\r\n');
+	var host_array = [];
+
+	for (var i = 0; i < str_array.length; i++) {
+		if(str_array[i].match("スコープ番号") || !str_array[i] )
+			continue;
+
+		var temp1 = str_array[i].split(' ');
+		var temp2 = [];
+		var info = { name:"", ipaddr:"", macaddr:"" };
+
+		for (var j = 0; j < temp1.length; j++) {
+			if(!temp1[j])
+				continue;
+			temp2.push(temp1[j]);
+		}
+
+		info.ipaddr = temp2[1].replace(":", "");
+		info.macaddr = temp2[2].replace(",", "");
+		if (temp2[3])
+			info.name = temp2[3];
+		host_array.push(info);
+	}
+
+	var str = "<table border=\"0\" cellpadding=\"1\" cellspacing=\"1\" width=\"540\" summary=\"popupcontents\">"
+	        + "<tr bgcolor=\"pink\">"
+	        + "<td width=\"180\">ホスト名</td>"
+	        + "<td width=\"180\">IPアドレス</td>"
+	        + "<td width=\"180\">MACアドレス</td></tr>";
+
+	for (var i = 0; i < host_array.length; i++) {
+		if ( i % 2 )
+			str += "<tr bgcolor=\"#cccccc\">";
+		else
+			str += "<tr>";
+
+		str += "<td>"
+		    + "<span style=\"cursor:pointer;\" onclick=\"setAddr(\'"
+		    + host_array[i].macaddr + "\')\">"
+		    + host_array[i].name
+		    + "</span></td><td>"
+		    + "<span style=\"cursor:pointer;\" onclick=\"setAddr(\'"
+		    + host_array[i].macaddr + "\')\">"
+		    + host_array[i].ipaddr
+		    + "</span></td><td>"
+		    + "<span style=\"cursor:pointer;\" onclick=\"setAddr(\'"
+		    + host_array[i].macaddr + "\')\">"
+		    + host_array[i].macaddr
+		    + "</span></td></tr>";
+	}
+
+	str += "</table>";
+	document.getElementById("dhcp_info").innerHTML = str;
+}
+
+/*
+ *  【概要】  DHCPクライアント情報を取得、表示する
+ *
+ *  【引数】  なし
+ *
+ *  【戻り値】なし
+ */
+function getDhcpClientInfo()
+{
+	var cmd = "#" + getSessionId() + "\r\nshow status dhcp summary\r\n";
+	sendRequest(printDhcpClientInfo, cmd, true);
+}
+
+/*
+ *  【概要】  wolコマンドを実行する
+ *
+ *  【引数】  なし
+ *
+ *  【戻り値】なし
+ */
+function execWol()
+{
+	var cmd;
+	var target_mac = document.getElementById("target_mac").value.toLowerCase();
+
+	if (!target_mac) {
+		return;
+	} else if (target_mac.match(/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i)) { 
+		/* 入力値がMACアドレスであればコマンドを実行する */
+		cmd = "wol send lan1 " + target_mac;
+		cmd = "#" + getSessionId() + "\r\n" + cmd;
+		sendRequest(confirmWol, cmd, true);
+	} else {
+		alert("入力値が不正です。MACアドレスを入力してください。");
+	}
+}
+
+/*
+ *  【概要】  ログアウトする
+ *
+ *  【引数】  なし
+ *
+ *  【戻り値】なし
+ */
+function logout()
+{
+	var cmd = "#" + getSessionId() + "\r\n#logout\r\n";
+
+	sendRequest(confirmLogout, cmd, true);
+}
+//-->
+</script>
+
+<body onLoad="getDhcpClientInfo();">
+
+<h1>Wake on LANによるPC管理</h1>
+
+<hr>
+
+<p>Wake on LAN機能で起動したいPCのMACアドレスを入力してください。<br>
+DHCPクライアント情報をクリックすることでも入力できます。</p>
+
+<form name="lan" action="#">
+<table border="0" width="500" cellpadding="3" cellspacing="0">
+  <tr>
+    <td width="300" bgcolor="pink">起動したいPCのMACアドレス</td>
+    <td bgcolor="pink">
+      <input type="text" maxlength="17" size="30" name="target_mac" id="target_mac" value="">
+    </td>
+    <td bgcolor="pink">
+      <button type="button" onclick="execWol()">起動する</button>
+    </td>
+  </tr>
+</table>
+</form>
+
+<br>
+
+<h3>ルーターが保持しているDHCPクライアント情報</h3>
+<div id="dhcp_info"><p>情報の取得中</p></div>
+
+<hr>
+
+<button type="button" onclick="logout()">ログアウト</button>
+
+</body>
+</html>
