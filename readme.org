@@ -1,4 +1,4 @@
-#TITLE: YAMAHA RTX series Wake On LAN with custom gui
+#+TITLE: YAMAHA RTX series Wake On LAN with custom gui
 * About
   - original: https://network.yamaha.com/setting/router_firewall/custom_gui/wol-rtx1200
 
