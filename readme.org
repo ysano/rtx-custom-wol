@@ -1,4 +1,29 @@
 #+TITLE: YAMAHA RTX series Wake On LAN with custom gui
 * About
   - original: https://network.yamaha.com/setting/router_firewall/custom_gui/wol-rtx1200
+* Install
+** transfer html to RTFS with tftp
+*** enable tftp on RTX
+    #+begin_src shell
+    tftp host any
+    #+end_src
+*** transfer file comannd from Client
+    #+begin_src shell
+    tftp 192.168.0.1 put wol.html /wol.html/ADMINPASSWORD
+    #+end_src
+*** disable tftp on RTX
+    #+begin_src shell
+    tftp host none
+    #+end_src
+** set custom gui on RTX
+   #+begin_src shell
+   ip lan1 address 192.168.0.1/24
+   dhcp service server
+   dhcp server rfc2131 compliant except remain-silent
+   dhcp scope 1 192.168.0.2-192.168.0.191/24
+   login user wol wol
+   httpd custom-gui use on
+   httpd custom-gui user wol directory=/ index=wol.html # RTFS
+   # httpd custom-gui user wol directory=usb1: index=wol.html # USB1
+   #+end_src
 
